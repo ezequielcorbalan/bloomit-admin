@@ -46,8 +46,16 @@ export async function login(email: string, password: string, turnstileToken: str
 // ── Analytics ─────────────────────────────────────────────────────────────────
 
 export interface OverviewData {
-  users: { total: number };
-  devices: { total: number; active: number; inactive: number };
+  users: {
+    total: number;
+    active_last_24h: number;
+  };
+  devices: {
+    total: number;
+    active: number;
+    inactive: number;
+    connected_last_24h: number;
+  };
   sensors_last_24h: number;
   plant_requests_pending: number;
 }

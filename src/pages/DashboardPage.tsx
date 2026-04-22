@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Users, Cpu, Activity, Clock } from 'lucide-react';
+import { Users, Cpu, Activity, Clock, UserCheck, Wifi } from 'lucide-react';
 import { getOverview, getPlantRequestAnalytics } from '../services/adminApi';
 import type { OverviewData } from '../services/adminApi';
 
@@ -75,13 +75,27 @@ export function DashboardPage() {
         <p className="text-neutral-500 text-sm mt-1">Resumen general de Bloomit</p>
       </div>
 
-      {/* Stats grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      {/* Stats grid — 2 filas x 3 columnas en desktop */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         <StatCard
           title="Usuarios registrados"
           value={overview?.users.total ?? 0}
           icon={<Users className="w-5 h-5 text-primary" />}
           iconBg="bg-primary/10"
+        />
+        <StatCard
+          title="Usuarios activos 24h"
+          value={overview?.users.active_last_24h ?? 0}
+          subtitle="con login reciente"
+          icon={<UserCheck className="w-5 h-5 text-primary" />}
+          iconBg="bg-primary/10"
+        />
+        <StatCard
+          title="Solicitudes pendientes"
+          value={overview?.plant_requests_pending ?? 0}
+          subtitle="plantas por aprobar"
+          icon={<Clock className="w-5 h-5 text-accent-yellow-dark" />}
+          iconBg="bg-accent-yellow/20"
         />
         <StatCard
           title="Dispositivos activos"
@@ -91,17 +105,17 @@ export function DashboardPage() {
           iconBg="bg-secondary/10"
         />
         <StatCard
+          title="Dispositivos conectados 24h"
+          value={overview?.devices.connected_last_24h ?? 0}
+          subtitle="con handshake reciente"
+          icon={<Wifi className="w-5 h-5 text-secondary-dark" />}
+          iconBg="bg-secondary/10"
+        />
+        <StatCard
           title="Lecturas últimas 24h"
           value={overview?.sensors_last_24h ?? 0}
           icon={<Activity className="w-5 h-5 text-primary-light" />}
           iconBg="bg-accent-mint/30"
-        />
-        <StatCard
-          title="Solicitudes pendientes"
-          value={overview?.plant_requests_pending ?? 0}
-          subtitle="plantas por aprobar"
-          icon={<Clock className="w-5 h-5 text-accent-yellow-dark" />}
-          iconBg="bg-accent-yellow/20"
         />
       </div>
 
