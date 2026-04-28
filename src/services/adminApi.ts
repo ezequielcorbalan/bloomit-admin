@@ -72,6 +72,26 @@ export async function getPlantRequestAnalytics(): Promise<{ success: boolean; da
   return request('/admin/analytics/plant-requests');
 }
 
+export interface DailyLoginPoint {
+  date: string; // YYYY-MM-DD
+  count: number;
+}
+
+export async function getDailyLogins(days = 15): Promise<{ success: boolean; data: DailyLoginPoint[] }> {
+  return request(`/admin/analytics/daily-logins?days=${days}`);
+}
+
+export interface ConnectedUserItem {
+  id_user: number;
+  email: string;
+  device_count: number;
+  last_connected: number; // unix seconds
+}
+
+export async function getConnectedUsers(hours = 24): Promise<{ success: boolean; data: ConnectedUserItem[] }> {
+  return request(`/admin/analytics/connected-users?hours=${hours}`);
+}
+
 // ── Plant Requests ─────────────────────────────────────────────────────────────
 
 export interface PlantRequest {
