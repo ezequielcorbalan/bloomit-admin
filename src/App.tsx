@@ -6,6 +6,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { PlantRequestsPage } from './pages/PlantRequestsPage';
 import { UsersPage } from './pages/UsersPage';
 import { AdminsPage } from './pages/AdminsPage';
+import { NotificationsPage } from './pages/NotificationsPage';
 
 function AppContent() {
   const { admin, loading, login, logout } = useAuth();
@@ -27,6 +28,7 @@ function AppContent() {
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/plant-requests" element={<PlantRequestsPage />} />
                 <Route path="/users" element={<UsersPage />} />
+                <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/admins" element={<AdminsPage />} />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>

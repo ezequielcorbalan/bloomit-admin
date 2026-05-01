@@ -191,3 +191,68 @@ export async function createAdmin(data: {
 export async function toggleAdmin(id: number): Promise<{ success: boolean; data: AdminItem }> {
   return request(`/admin/admins/${id}/toggle`, { method: 'PATCH' });
 }
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+
+export interface NotificationType {
+  id: string;
+  label: string;
+  description: string;
+  sample_body: string;
+  supports_snooze: boolean;
+  optional_context: string[];
+}
+
+export async function getNotificationTypes(): Promise<{ success: boolean; data: NotificationType[] }> {
+  return request('/admin/notifications/types');
+}
+
+export type NotificationSeverity = 'info' | 'warning' | 'critical';
+
+export interface PresetNotificationPayload {
+  alert_type: string;
+  plant_nickname?: string;
+  hours_offline?: number;
+  sensor_device_id?: number;
+  sensor_type?: string;
+  current_value?: number;
+  threshold?: number;
+  severity?: NotificationSeverity;
+  message?: string;
+}
+
+export interface CustomNotificationPayload {
+  title: string;
+  body: string;
+  data?: Record<string, unknown>;
+}
+
+export type SendNotificationInput =
+  | {
+      target: 'all' | 'specific';
+      user_ids?: number[];
+      mode: 'preset';
+      preset: PresetNotificationPayload;
+    }
+  | {
+      target: 'all' | 'specific';
+      user_ids?: number[];
+      mode: 'custom';
+      custom: CustomNotificationPayload;
+    };
+
+export interface SendNotificationResult {
+  target_users: number;
+  sent: number;
+  failed: number;
+  failures: Array<{ user_id: number; error: string }>;
+}
+
+export async function sendNotification(
+  input: SendNotificationInput
+): Promise<{ success: boolean; data: SendNotificationResult; message?: string }> {
+  return request('/admin/notifications/send', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
