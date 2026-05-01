@@ -245,7 +245,7 @@ export interface SendNotificationResult {
   target_users: number;
   sent: number;
   failed: number;
-  failures: Array<{ user_id: number; error: string }>;
+  failures?: Array<{ user_id: number; error: string }>;
 }
 
 export async function sendNotification(
