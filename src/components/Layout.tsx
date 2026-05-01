@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Leaf, Users, LogOut, ShieldCheck, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Leaf, Users, LogOut, ShieldCheck, Menu, X, Bell } from 'lucide-react';
 import logoIcon from '/logo-icon.png';
 
 interface LayoutProps {
@@ -13,6 +13,7 @@ const nav = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/plant-requests', icon: Leaf, label: 'Solicitudes' },
   { to: '/users', icon: Users, label: 'Usuarios' },
+  { to: '/notifications', icon: Bell, label: 'Notificaciones' },
   { to: '/admins', icon: ShieldCheck, label: 'Superadmins' },
 ];
 
