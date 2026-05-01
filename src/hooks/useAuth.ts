@@ -25,6 +25,14 @@ export function useAuth() {
     setLoading(false);
   }, []);
 
+  useEffect(() => {
+    function handleExpired() {
+      setAdmin(null);
+    }
+    window.addEventListener('auth:expired', handleExpired);
+    return () => window.removeEventListener('auth:expired', handleExpired);
+  }, []);
+
   async function login(email: string, password: string, turnstileToken: string) {
     const res = await apiLogin(email, password, turnstileToken);
     localStorage.setItem('adminToken', res.data.token);
