@@ -21,7 +21,14 @@ async function request<T>(
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
+
+  if (res.status === 401 && path !== '/admin/login') {
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('adminUser');
+    window.dispatchEvent(new Event('auth:expired'));
+    throw new Error(data.error || 'Sesión expirada');
+  }
 
   if (!res.ok) {
     throw new Error(data.error || `HTTP ${res.status}`);
