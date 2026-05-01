@@ -12,9 +12,12 @@ import {
   AlertTriangle,
   CheckCircle2,
   ChevronDown,
+  Copy,
+  Check,
 } from 'lucide-react';
 import {
   getNotificationTypes,
+  getUser,
   getUsers,
   sendNotification,
 } from '../services/adminApi';
@@ -32,6 +35,13 @@ type Mode = 'preset' | 'custom';
 interface SendOutcome {
   result: SendNotificationResult;
   message?: string;
+}
+
+interface DeviceOption {
+  device_id: number;
+  name: string;
+  is_active: boolean;
+  user_email: string;
 }
 
 const TITLE_MAX = 200;
@@ -62,6 +72,10 @@ export function NotificationsPage() {
   const [submitError, setSubmitError] = useState('');
   const [outcome, setOutcome] = useState<SendOutcome | null>(null);
 
+  const [devices, setDevices] = useState<DeviceOption[]>([]);
+  const [devicesLoading, setDevicesLoading] = useState(false);
+  const deviceCacheRef = useRef<Map<number, DeviceOption[]>>(new Map());
+
   useEffect(() => {
     let cancelled = false;
     setTypesLoading(true);
@@ -90,6 +104,73 @@ export function NotificationsPage() {
 
   const allowsContext = (key: string) =>
     selectedType?.optional_context.includes(key) ?? false;
+
+  const needsDeviceList =
+    mode === 'preset' &&
+    target === 'specific' &&
+    selectedUsers.length > 0 &&
+    (selectedType?.optional_context.includes('sensor_device_id') ?? false);
+
+  useEffect(() => {
+    if (!needsDeviceList) {
+      setDevices([]);
+      setDevicesLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setDevicesLoading(true);
+    (async () => {
+      const cache = deviceCacheRef.current;
+      const collected: DeviceOption[] = [];
+      const seen = new Set<number>();
+      for (const user of selectedUsers) {
+        let userDevices = cache.get(user.id_user);
+        if (!userDevices) {
+          try {
+            const res = await getUser(user.id_user);
+            const list: DeviceOption[] = ((res.data?.devices ?? []) as Array<{
+              device_id: number;
+              name?: string | null;
+              is_active?: boolean;
+            }>).map(d => ({
+              device_id: d.device_id,
+              name: d.name?.trim() ? d.name : `Dispositivo #${d.device_id}`,
+              is_active: !!d.is_active,
+              user_email: user.email,
+            }));
+            cache.set(user.id_user, list);
+            userDevices = list;
+          } catch {
+            userDevices = [];
+          }
+        }
+        if (cancelled) return;
+        for (const d of userDevices) {
+          if (seen.has(d.device_id)) continue;
+          seen.add(d.device_id);
+          collected.push(d);
+        }
+      }
+      if (cancelled) return;
+      collected.sort(
+        (a, b) =>
+          a.user_email.localeCompare(b.user_email) || a.device_id - b.device_id
+      );
+      setDevices(collected);
+      setDevicesLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [needsDeviceList, selectedUsers]);
+
+  useEffect(() => {
+    if (!needsDeviceList) return;
+    if (devicesLoading) return;
+    if (!sensorDeviceId) return;
+    const stillThere = devices.some(d => String(d.device_id) === sensorDeviceId);
+    if (!stillThere) setSensorDeviceId('');
+  }, [devices, devicesLoading, sensorDeviceId, needsDeviceList]);
 
   function resetResult() {
     setOutcome(null);
@@ -265,6 +346,11 @@ export function NotificationsPage() {
               threshold={threshold}
               onThresholdChange={setThreshold}
               selectedType={selectedType}
+              devices={devices}
+              devicesLoading={devicesLoading}
+              hasUserSelection={target === 'specific' && selectedUsers.length > 0}
+              showMultiUserDeviceHint={target === 'specific' && selectedUsers.length > 1}
+              targetIsSpecific={target === 'specific'}
             />
           ) : (
             <CustomForm
@@ -315,11 +401,7 @@ export function NotificationsPage() {
             </div>
           )}
 
-          {submitError && (
-            <div className="mt-4 bg-accent-coral/10 border border-accent-coral/30 rounded-lg px-4 py-3 text-sm text-accent-coral-dark">
-              {submitError}
-            </div>
-          )}
+          {submitError && <SubmitErrorBanner message={submitError} />}
 
           {outcome && <ResultPanel outcome={outcome} />}
 
@@ -567,6 +649,11 @@ function PresetForm({
   threshold,
   onThresholdChange,
   selectedType,
+  devices,
+  devicesLoading,
+  hasUserSelection,
+  showMultiUserDeviceHint,
+  targetIsSpecific,
 }: {
   types: NotificationType[];
   loading: boolean;
@@ -584,6 +671,11 @@ function PresetForm({
   threshold: string;
   onThresholdChange: (v: string) => void;
   selectedType: NotificationType | null;
+  devices: DeviceOption[];
+  devicesLoading: boolean;
+  hasUserSelection: boolean;
+  showMultiUserDeviceHint: boolean;
+  targetIsSpecific: boolean;
 }) {
   if (loading) {
     return (
@@ -657,12 +749,14 @@ function PresetForm({
           />
         )}
         {allows('sensor_device_id') && (
-          <Field
-            label="Device ID"
+          <DeviceField
             value={sensorDeviceId}
             onChange={onSensorDeviceIdChange}
-            type="number"
-            placeholder="12"
+            devices={devices}
+            loading={devicesLoading}
+            hasUserSelection={hasUserSelection}
+            showMultiUserHint={showMultiUserDeviceHint}
+            targetIsSpecific={targetIsSpecific}
           />
         )}
         {allows('current_value') && (
@@ -784,6 +878,77 @@ function Field({
   );
 }
 
+function DeviceField({
+  value,
+  onChange,
+  devices,
+  loading,
+  hasUserSelection,
+  showMultiUserHint,
+  targetIsSpecific,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  devices: DeviceOption[];
+  loading: boolean;
+  hasUserSelection: boolean;
+  showMultiUserHint: boolean;
+  targetIsSpecific: boolean;
+}) {
+  const showSelect = hasUserSelection && (loading || devices.length > 0);
+  const showEmpty = hasUserSelection && !loading && devices.length === 0;
+
+  return (
+    <div>
+      <label className="block text-sm font-semibold text-neutral-700 mb-1">
+        Dispositivo
+      </label>
+      {showSelect ? (
+        <div className="relative">
+          <select
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            disabled={loading}
+            className="w-full appearance-none border border-neutral-300 rounded-lg px-3 py-2 pr-9 text-sm focus:ring-2 focus:ring-primary focus:outline-none bg-neutral-50 disabled:opacity-60"
+          >
+            <option value="">{loading ? 'Cargando dispositivos...' : 'Sin dispositivo específico'}</option>
+            {devices.map(d => (
+              <option key={d.device_id} value={String(d.device_id)}>
+                {d.name} · #{d.device_id}
+                {showMultiUserHint ? ` — ${d.user_email}` : ''}
+                {!d.is_active ? ' (inactivo)' : ''}
+              </option>
+            ))}
+          </select>
+          {loading ? (
+            <Loader2 className="w-4 h-4 text-neutral-400 absolute right-3 top-1/2 -translate-y-1/2 animate-spin pointer-events-none" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-neutral-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          )}
+        </div>
+      ) : (
+        <input
+          type="number"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder="12"
+          className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none bg-neutral-50"
+        />
+      )}
+      {showEmpty && (
+        <p className="text-xs text-neutral-500 mt-1">
+          Los usuarios seleccionados no tienen dispositivos. Podés ingresar un ID manualmente.
+        </p>
+      )}
+      {targetIsSpecific && !hasUserSelection && (
+        <p className="text-xs text-neutral-500 mt-1">
+          Seleccioná usuarios para elegir un dispositivo de la lista.
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ── Summary + result ─────────────────────────────────────────────────────────
 
 function Summary({
@@ -880,22 +1045,137 @@ function ResultPanel({ outcome }: { outcome: SendOutcome }) {
             />
           </div>
           {result.failures.length > 0 && (
-            <details className="mt-3">
-              <summary className="text-xs font-semibold text-accent-coral-dark cursor-pointer">
-                Ver detalles ({result.failures.length})
-              </summary>
-              <ul className="mt-2 space-y-1 text-xs text-neutral-700">
-                {result.failures.map((f, i) => (
-                  <li key={`${f.user_id}-${i}`} className="font-mono">
-                    #{f.user_id} — {f.error}
-                  </li>
-                ))}
-              </ul>
-            </details>
+            <FailuresPanel failures={result.failures} />
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+function SubmitErrorBanner({ message }: { message: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(message);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = message;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      // noop
+    }
+  }
+
+  return (
+    <div className="mt-4 bg-accent-coral/10 border border-accent-coral/30 rounded-lg px-4 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm text-accent-coral-dark whitespace-pre-wrap break-words">
+          {message}
+        </p>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border border-accent-coral/30 hover:bg-white text-accent-coral-dark transition-colors"
+        >
+          {copied ? (
+            <>
+              <Check className="w-3.5 h-3.5" /> Copiado
+            </>
+          ) : (
+            <>
+              <Copy className="w-3.5 h-3.5" /> Copiar
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function FailuresPanel({
+  failures,
+}: {
+  failures: Array<{ user_id: number; error: string }>;
+}) {
+  const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState('');
+
+  const text = useMemo(
+    () => failures.map(f => `#${f.user_id} — ${f.error}`).join('\n'),
+    [failures]
+  );
+
+  async function handleCopy() {
+    setCopyError('');
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setCopyError('No se pudo copiar');
+    }
+  }
+
+  return (
+    <details className="mt-3" open>
+      <summary className="text-xs font-semibold text-accent-coral-dark cursor-pointer">
+        Ver detalles ({failures.length})
+      </summary>
+      <div className="mt-2 rounded-md border border-accent-coral/20 bg-white">
+        <div className="flex items-center justify-between px-3 py-2 border-b border-accent-coral/10">
+          <p className="text-xs font-semibold text-accent-coral-dark">
+            {failures.length} error{failures.length === 1 ? '' : 'es'}
+          </p>
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border border-neutral-300 hover:bg-neutral-100 text-neutral-700 transition-colors"
+          >
+            {copied ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-secondary-dark" /> Copiado
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5" /> Copiar errores
+              </>
+            )}
+          </button>
+        </div>
+        <ul className="px-3 py-2 space-y-1 text-xs text-neutral-700 max-h-56 overflow-y-auto">
+          {failures.map((f, i) => (
+            <li key={`${f.user_id}-${i}`} className="font-mono break-all">
+              #{f.user_id} — {f.error}
+            </li>
+          ))}
+        </ul>
+        {copyError && (
+          <p className="px-3 pb-2 text-xs text-accent-coral-dark">{copyError}</p>
+        )}
+      </div>
+    </details>
   );
 }
 
