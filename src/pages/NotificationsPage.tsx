@@ -1044,9 +1044,11 @@ function ResultPanel({ outcome }: { outcome: SendOutcome }) {
               highlight={result.failed > 0 ? 'error' : 'ok'}
             />
           </div>
-          {result.failures.length > 0 && (
+          {result.failures && result.failures.length > 0 ? (
             <FailuresPanel failures={result.failures} />
-          )}
+          ) : result.failed > 0 ? (
+            <FailuresMissingNotice count={result.failed} />
+          ) : null}
         </div>
       </div>
     </div>
@@ -1098,6 +1100,23 @@ function SubmitErrorBanner({ message }: { message: string }) {
             </>
           )}
         </button>
+      </div>
+    </div>
+  );
+}
+
+function FailuresMissingNotice({ count }: { count: number }) {
+  return (
+    <div className="mt-3 rounded-md border border-accent-yellow/40 bg-accent-yellow/10 px-3 py-2 flex items-start gap-2">
+      <AlertTriangle className="w-4 h-4 text-accent-yellow-dark mt-0.5 shrink-0" />
+      <div className="text-xs text-neutral-700">
+        <p className="font-semibold text-neutral-900">
+          {count} fallidas sin detalle
+        </p>
+        <p className="mt-0.5">
+          El backend no incluyó <span className="font-mono">failures[]</span> en la respuesta.
+          Revisá los logs del servidor para ver el motivo (token expirado, device no registrado, etc.).
+        </p>
       </div>
     </div>
   );
